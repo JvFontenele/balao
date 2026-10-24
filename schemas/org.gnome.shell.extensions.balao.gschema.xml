@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.balao" path="/org/gnome/shell/extensions/balao/">
+    <key name="atalho-balao" type="as">
+      <default><![CDATA[['<Control><Alt>space']]]></default>
+      <summary>Atalho do balão de correção e pesquisa</summary>
+    </key>
+    <key name="atalho-historico" type="as">
+      <default><![CDATA[['<Super>x']]]></default>
+      <summary>Atalho do histórico da área de transferência</summary>
+    </key>
+    <key name="idioma" type="s">
+      <default>'pt_BR'</default>
+      <summary>Dicionário do enchant (ex.: pt_BR, en_US)</summary>
+    </key>
+    <key name="url-pesquisa" type="s">
+      <default>'https://www.google.com/search?q=%s'</default>
+      <summary>URL de pesquisa; %s é trocado pelo texto</summary>
+    </key>
+    <key name="tamanho-historico" type="i">
+      <range min="5" max="1000"/>
+      <default>50</default>
+      <summary>Quantidade máxima de itens não fixados no histórico</summary>
+    </key>
+    <key name="limite-item-mb" type="i">
+      <range min="1" max="500"/>
+      <default>20</default>
+      <summary>Tamanho máximo de um item do histórico, em MB</summary>
+    </key>
+    <key name="colar-automatico" type="b">
+      <default>true</default>
+      <summary>Colar o item escolhido direto no campo em foco</summary>
+    </key>
+  </schema>
+</schemalist>

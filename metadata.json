@@ -1,0 +1,8 @@
+{
+  "uuid": "balao@jvfontenele.github.io",
+  "name": "Balão",
+  "description": "Balão flutuante perto do cursor: correção ortográfica, pesquisa no navegador e histórico da área de transferência.",
+  "shell-version": ["46"],
+  "settings-schema": "org.gnome.shell.extensions.balao",
+  "version": 1
+}

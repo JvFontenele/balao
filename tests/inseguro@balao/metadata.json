@@ -1,0 +1,6 @@
+{
+  "uuid": "inseguro@balao",
+  "name": "Teste: libera Eval",
+  "description": "Só para o Shell aninhado de teste. Liga o unsafe_mode para os testes usarem org.gnome.Shell.Eval.",
+  "shell-version": ["46"]
+}
