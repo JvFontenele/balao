@@ -2,6 +2,7 @@
 // Preferências: atalhos, idioma, pesquisa e histórico.
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
@@ -19,6 +20,7 @@ export default class Preferencias extends ExtensionPreferences {
         pagina.add(atalhos);
         atalhos.add(linhaTexto(s, 'atalho-balao', 'Correção e pesquisa', t => Gtk.accelerator_parse(t)[0], true));
         atalhos.add(linhaTexto(s, 'atalho-historico', 'Área de transferência', t => Gtk.accelerator_parse(t)[0], true));
+        atalhos.add(linhaTexto(s, 'atalho-espelhar', 'Espelhar dispositivo (Nexus)', t => Gtk.accelerator_parse(t)[0], true));
 
         const texto = new Adw.PreferencesGroup({title: 'Correção e pesquisa'});
         pagina.add(texto);
@@ -38,6 +40,24 @@ export default class Preferencias extends ExtensionPreferences {
         const colar = new Adw.SwitchRow({title: 'Colar direto no campo em foco', subtitle: 'Desligado: só copia o item'});
         s.bind('colar-automatico', colar, 'active', Gio.SettingsBindFlags.DEFAULT);
         historico.add(colar);
+
+        const nexus = new Adw.PreferencesGroup({
+            title: 'Integração com o Nexus',
+            description: 'Dispositivos pareados pelo Nexus: texto recebido vai para a área de transferência, pedidos de pareamento abrem um balão.',
+        });
+        pagina.add(nexus);
+        const ativo = new Adw.SwitchRow({title: 'Usar o Nexus', subtitle: nexusRodando() ? 'nexusd encontrado' : 'nexusd não está rodando'});
+        s.bind('nexus-ativo', ativo, 'active', Gio.SettingsBindFlags.DEFAULT);
+        nexus.add(ativo);
+    }
+}
+
+function nexusRodando() {
+    try {
+        return Gio.DBus.session.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+            'NameHasOwner', new GLib.Variant('(s)', ['dev.nexus.Daemon']), null, Gio.DBusCallFlags.NONE, 1000, null).deepUnpack()[0];
+    } catch {
+        return false;
     }
 }
 

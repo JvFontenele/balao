@@ -62,6 +62,16 @@ export class Historico {
         this._agendarSalvar();
     }
 
+    // Texto completo do item (a prévia é cortada). Vazio se o arquivo sumiu.
+    texto(item) {
+        try {
+            return new TextDecoder().decode(Gio.File.new_for_path(arquivoItem(item.id)).load_contents(null)[1]);
+        } catch (e) {
+            logError(e, 'balao: ler item');
+            return '';
+        }
+    }
+
     // Torna o item o conteúdo atual da área de transferência.
     // ponytail: só o formato principal volta (imagem, arquivos ou texto). O GJS não deixa implementar
     // Meta.SelectionSource.read_async em JS; vários formatos exigiriam um helper em C.

@@ -2,6 +2,7 @@
 // Balão: extensão do GNOME Shell com balão flutuante de correção, pesquisa e histórico da área de transferência.
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
@@ -12,6 +13,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {Balao} from './balao.js';
 import {Foco} from './entrada.js';
 import {Historico, ICONES} from './historico.js';
+import {formatarCodigo, Nexus} from './nexus.js';
 import {Ortografia} from './ortografia.js';
 
 const MODOS = Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW | Shell.ActionMode.POPUP;
@@ -26,21 +28,26 @@ export default class PesquisaLinux extends Extension {
             this._ortografia.destroy();
             this._ortografia = new Ortografia(this._settings.get_string('idioma'));
         });
+        this._nexus = new Nexus(this._settings, {aoParear: p => this.abrirPareamento(p)});
         Main.wm.addKeybinding('atalho-balao', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, MODOS,
             () => this._alternar(() => this.abrirPrincipal()));
         Main.wm.addKeybinding('atalho-historico', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, MODOS,
             () => this._alternar(() => this.abrirHistorico()));
+        Main.wm.addKeybinding('atalho-espelhar', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, MODOS,
+            () => this.espelhar());
     }
 
     disable() {
         Main.wm.removeKeybinding('atalho-balao');
         Main.wm.removeKeybinding('atalho-historico');
+        Main.wm.removeKeybinding('atalho-espelhar');
         this._balao?.fechar();
         this._settings.disconnect(this._idIdioma);
         this._ortografia.destroy();
+        this._nexus.destroy();
         this._historico.destroy();
         this._foco.destroy();
-        this._balao = this._settings = this._foco = this._historico = this._ortografia = null;
+        this._balao = this._settings = this._foco = this._historico = this._ortografia = this._nexus = null;
     }
 
     // Atalho com o balão aberto fecha o balão.
@@ -78,6 +85,8 @@ export default class PesquisaLinux extends Extension {
             aoEscolher: item => {
                 if (item.acao === 'pesquisar')
                     this._pesquisar(item.termo);
+                else if (item.acao === 'nexus')
+                    this._enviarNexus(item.pedido, item.dispositivo);
                 else if (alvo.origem)
                     this._foco.substituir(alvo.origem, item.rotulo);
                 else
@@ -89,7 +98,7 @@ export default class PesquisaLinux extends Extension {
     async _itensPrincipal(filtro, alvo) {
         const termo = filtro.trim();
         if (!termo)
-            return [];
+            return this._itensNexus('');
         const pesquisa = {icone: 'system-search-symbolic', rotulo: `Pesquisar “${termo}”`, acao: 'pesquisar', termo};
         let sugestoes = [];
         if (!/\s/.test(termo)) {
@@ -105,7 +114,51 @@ export default class PesquisaLinux extends Extension {
             }
         }
         // Digitando num campo, a correção vem primeiro; fora dele, a pesquisa.
-        return alvo.origem ? [...sugestoes, pesquisa] : [pesquisa, ...sugestoes];
+        const itens = alvo.origem ? [...sugestoes, pesquisa] : [pesquisa, ...sugestoes];
+        return [...itens, ...this._itensNexus(termo)];
+    }
+
+    // Itens do Nexus (vazio sem o Nexus): espelhar qualquer pareado; com texto, enviar/pesquisar nos conectados.
+    _itensNexus(termo) {
+        if (!this._nexus.disponivel)
+            return [];
+        const espelhar = this._nexus.dispositivos.flatMap(d => [
+            {icone: 'video-display-symbolic', rotulo: `Espelhar tela do ${d.name}`,
+                legenda: 'scrcpy (USB ou depuração sem fio)', acao: 'nexus', dispositivo: d, pedido: {cmd: 'mirror', device_id: d.device_id}},
+            ...d.conectado ? [{icone: d.audio ? 'audio-volume-muted-symbolic' : 'audio-speakers-symbolic',
+                rotulo: d.audio ? `Parar áudio no ${d.name}` : `Áudio do PC no ${d.name}`, legenda: 'O som do PC sai pelo dispositivo',
+                acao: 'nexus', dispositivo: d, pedido: {cmd: d.audio ? 'audio.stop' : 'audio.start', device_id: d.device_id}}] : [],
+        ]);
+        if (!termo)
+            return espelhar;
+        const url = this._settings.get_string('url-pesquisa').replace('%s', encodeURIComponent(termo));
+        return [...this._nexus.dispositivos.filter(d => d.conectado).flatMap(d => [
+            {icone: 'phone-symbolic', rotulo: `Enviar para ${d.name}`, legenda: 'Copia no dispositivo', acao: 'nexus',
+                dispositivo: d, pedido: {cmd: 'send.text', device_id: d.device_id, text: termo}},
+            {icone: 'system-search-symbolic', rotulo: `Pesquisar no ${d.name}`, legenda: 'Toque na notificação para abrir',
+                acao: 'nexus', dispositivo: d, pedido: {cmd: 'open.url', device_id: d.device_id, url}},
+        ]), ...espelhar];
+    }
+
+    // Atalho: espelha o primeiro dispositivo conectado (ou o primeiro pareado).
+    espelhar() {
+        if (!this._nexus.disponivel) {
+            Main.notify('Nexus', 'Ative "Usar o Nexus" nas preferências do Balão e inicie o nexusd');
+            return;
+        }
+        const ds = this._nexus.dispositivos;
+        const d = ds.find(x => x.conectado) ?? ds[0];
+        if (!d) {
+            Main.notify('Nexus', 'Nenhum dispositivo pareado');
+            return;
+        }
+        this._enviarNexus({cmd: 'mirror', device_id: d.device_id}, d);
+    }
+
+    async _enviarNexus(pedido, dispositivo) {
+        const r = await this._nexus.comando(pedido);
+        if (!r.ok)
+            Main.notifyError('Nexus', `${dispositivo.name}: ${r.error ?? 'falhou'}`);
     }
 
     _pesquisar(termo) {
@@ -117,13 +170,33 @@ export default class PesquisaLinux extends Extension {
         }
     }
 
+    // Conferência do código de pareamento do Nexus. "Recusar" vem primeiro: Enter por engano não pareia.
+    abrirPareamento(p) {
+        this._abrir(this._foco.capturar(), {
+            titulo: `Parear com ${p.name} · código ${formatarCodigo(p.code)}`,
+            dica: 'Confira o código no outro dispositivo',
+            vazio: '',
+            rodape: 'Confirme só se o dispositivo mostrar o mesmo código',
+            itens: () => [
+                {icone: 'window-close-symbolic', rotulo: 'Recusar', acao: 'recusar'},
+                {icone: 'emblem-ok-symbolic', rotulo: `Confirmar ${formatarCodigo(p.code)}`,
+                    legenda: `${p.fingerprint.slice(0, 16)}…`, acao: 'aceitar'},
+            ],
+            aoEscolher: async item => {
+                const r = await this._nexus.confirmar(p.pid, item.acao === 'aceitar');
+                if (!r.ok)
+                    Main.notifyError('Nexus', r.error ?? 'falhou');
+            },
+        });
+    }
+
     abrirHistorico() {
         const alvo = this._foco.capturar();
         this._abrir(alvo, {
             titulo: 'Área de transferência',
             dica: 'Filtrar…',
             vazio: 'Nada copiado ainda',
-            rodape: 'Enter colar · Del remover · Ctrl+P fixar · Esc fechar',
+            rodape: `Enter colar · Del remover · Ctrl+P fixar${this._nexus.dispositivos.some(d => d.conectado) ? ' · Ctrl+E enviar' : ''} · Esc fechar`,
             itens: filtro => this._historico.listar(filtro).map(e => ({
                 icone: e.fixado ? 'view-pin-symbolic' : ICONES[e.tipo],
                 rotulo: e.previa || '(vazio)',
@@ -143,6 +216,16 @@ export default class PesquisaLinux extends Extension {
                 }
                 if ((estado & Clutter.ModifierType.CONTROL_MASK) && (simbolo === Clutter.KEY_p || simbolo === Clutter.KEY_P)) {
                     this._historico.fixar(item.entrada);
+                    return true;
+                }
+                // Ctrl+E: envia o item de texto ao primeiro dispositivo conectado ao Nexus
+                if ((estado & Clutter.ModifierType.CONTROL_MASK) && (simbolo === Clutter.KEY_e || simbolo === Clutter.KEY_E)) {
+                    const d = this._nexus.disponivel && this._nexus.dispositivos.find(x => x.conectado);
+                    if (d && item.entrada.tipo === 'texto')
+                        this._enviarNexus({cmd: 'send.text', device_id: d.device_id, text: this._historico.texto(item.entrada)}, d);
+                    else if (d && item.entrada.tipo === 'arquivo')  // arquivos copiados no Arquivos (Ctrl+C)
+                        for (const uri of this._historico.texto(item.entrada).split(/\r?\n/).filter(l => l.startsWith('file://')))
+                            this._enviarNexus({cmd: 'send.file', device_id: d.device_id, path: GLib.filename_from_uri(uri)[0]}, d);
                     return true;
                 }
                 return false;

@@ -284,6 +284,121 @@ ok(e.stateObj._historico.itens.length > 0, 'histórico não recarregou');
 return 'ok';
 JS
 
+echo "== Integração com o Nexus (nexusd falso no barramento privado)"
+python3 "$RAIZ/tests/nexus_falso.py" & FALSO=$!
+caso "desligado: não ocupa dev.nexus.Shell" <<'JS'
+const temDono = n => Gio.DBus.session.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+    'NameHasOwner', new GLib.Variant('(s)', [n]), null, Gio.DBusCallFlags.NONE, 1000, null).deepUnpack()[0];
+for (let i = 0; i < 40 && !temDono('dev.nexus.Daemon'); i++) await esperar(100);
+ok(temDono('dev.nexus.Daemon'), 'falso não subiu');
+ok(!temDono('dev.nexus.Shell'), 'ocupou sem estar ligado');
+ok(!x._nexus.disponivel, 'disponível desligado');
+return 'ok';
+JS
+caso "ligado: ocupa o nome e lista dispositivos" <<'JS'
+const temDono = n => Gio.DBus.session.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+    'NameHasOwner', new GLib.Variant('(s)', [n]), null, Gio.DBusCallFlags.NONE, 1000, null).deepUnpack()[0];
+x._settings.set_boolean('nexus-ativo', true);
+for (let i = 0; i < 40 && !x._nexus.dispositivos.length; i++) await esperar(100);
+ok(temDono('dev.nexus.Shell'), 'não ocupou dev.nexus.Shell');
+ok(x._nexus.disponivel, 'não viu o daemon');
+ok(x._nexus.dispositivos[0]?.name === 'POCO' && x._nexus.dispositivos[0].conectado, json(x._nexus.dispositivos));
+return 'ok';
+JS
+caso "texto recebido vai para a área de transferência e o histórico" <<'JS'
+const emitir = ev => Gio.DBus.session.call_sync('dev.nexus.Daemon', '/dev/nexus/Daemon', 'dev.nexus.Daemon1', 'Emitir',
+    new GLib.Variant('(s)', [JSON.stringify(ev)]), null, Gio.DBusCallFlags.NONE, 1000, null);
+emitir({event: 'text.received', device_id: 'x', name: 'POCO', text: 'veio do celular $(id)'});
+let t;
+for (let i = 0; i < 30 && t !== 'veio do celular $(id)'; i++) { await esperar(100); t = await lerTexto(); }
+ok(t === 'veio do celular $(id)', 'clipboard: ' + t);
+for (let i = 0; i < 20 && x._historico.itens[0]?.previa !== t; i++) await esperar(100);
+ok(x._historico.itens[0].previa === t, 'histórico: ' + x._historico.itens[0]?.previa);
+return 'ok';
+JS
+caso "pedido de pareamento: notificação e balão com Recusar primeiro" <<'JS'
+const antes = Main.messageTray.getSources().length;
+const p = {event: 'pair.pending', pid: 'abc12345', name: 'POCO', kind: 'phone', fingerprint: '7b'.repeat(32), code: '169469', expires_in: 50};
+Gio.DBus.session.call_sync('dev.nexus.Daemon', '/dev/nexus/Daemon', 'dev.nexus.Daemon1', 'Emitir',
+    new GLib.Variant('(s)', [JSON.stringify(p)]), null, Gio.DBusCallFlags.NONE, 1000, null);
+for (let i = 0; i < 30 && Main.messageTray.getSources().length === antes; i++) await esperar(100);
+ok(Main.messageTray.getSources().length > antes, 'sem notificação');
+ok(!x._balao, 'balão abriu sozinho (pegaria o teclado)');
+x.abrirPareamento(p);
+await esperar(300);
+ok(x._balao?.aberto, 'balão não abriu');
+const itens = x._balao._itens;
+ok(itens[0].acao === 'recusar' && itens[1].acao === 'aceitar', json(itens.map(i => i.acao)));
+ok(itens[1].rotulo.includes('169 469'), itens[1].rotulo);
+await foto('nexus-pareamento.png');
+await x._balao._o.aoEscolher(itens[1]);
+x._balao.fechar();
+const r = await x._nexus.comando({cmd: 'ultimo'});
+ok(r.cmd === 'pair.confirm' && r.pid === 'abc12345' && r.accept === true, json(r));
+return 'ok';
+JS
+caso "enviar e pesquisar no dispositivo (balão principal e Ctrl+E no histórico)" <<'JS'
+const itens = await x._itensPrincipal('nexus teste', {origem: null});
+const enviar = itens.find(i => i.rotulo === 'Enviar para POCO');
+const pesquisar = itens.find(i => i.rotulo === 'Pesquisar no POCO');
+ok(enviar && pesquisar, json(itens.map(i => i.rotulo)));
+const vazio = await x._itensPrincipal('', {origem: null});
+ok(vazio.length === 2 && vazio[0].rotulo === 'Espelhar tela do POCO' && vazio[1].rotulo === 'Áudio do PC no POCO',
+    'sem texto: ' + json(vazio.map(i => i.rotulo)));
+await x._enviarNexus(vazio[1].pedido, vazio[1].dispositivo);
+const raud = await x._nexus.comando({cmd: 'ultimo'});
+ok(raud.cmd === 'audio.start' && raud.device_id === '7b'.repeat(32), json(raud));
+await x._enviarNexus(vazio[0].pedido, vazio[0].dispositivo);
+const rm = await x._nexus.comando({cmd: 'ultimo'});
+ok(rm.cmd === 'mirror' && rm.device_id === '7b'.repeat(32), json(rm));
+await x._nexus.comando({cmd: 'devices.list'});  // zera o "ultimo"
+x.espelhar();
+await esperar(300);
+const ra = await x._nexus.comando({cmd: 'ultimo'});
+ok(ra.cmd === 'mirror', 'atalho: ' + json(ra));
+await x._enviarNexus(enviar.pedido, enviar.dispositivo);
+let r = await x._nexus.comando({cmd: 'ultimo'});
+ok(r.cmd === 'send.text' && r.text === 'nexus teste' && r.device_id === '7b'.repeat(32), json(r));
+await x._enviarNexus(pesquisar.pedido, pesquisar.dispositivo);
+r = await x._nexus.comando({cmd: 'ultimo'});
+ok(r.cmd === 'open.url' && r.url.endsWith('nexus%20teste'), json(r));
+St.Clipboard.get_default().set_text(CB, 'item do histórico para o celular');
+for (let i = 0; i < 20 && x._historico.itens[0]?.previa !== 'item do histórico para o celular'; i++) await esperar(100);
+x.abrirHistorico();
+await esperar(200);
+const item = x._balao._itens.find(i => i.entrada.previa === 'item do histórico para o celular');
+ok(x._balao._o.aoTecla(item, Clutter.KEY_e, Clutter.ModifierType.CONTROL_MASK), 'Ctrl+E não tratado');
+x._balao.fechar();
+for (let i = 0; i < 20; i++) { r = await x._nexus.comando({cmd: 'ultimo'}); if (r.cmd === 'send.text' && r.text.startsWith('item')) break; await esperar(100); }
+ok(r.text === 'item do histórico para o celular', json(r));
+// Ctrl+E num item de arquivo copiado: manda o caminho para o send.file
+const cf = Meta.SelectionSourceMemory.new('x-special/gnome-copied-files', new GLib.Bytes(new TextEncoder().encode(`copy
+file:///tmp/a%20b.txt`)));
+global.display.get_selection().set_owner(Meta.SelectionType.SELECTION_CLIPBOARD, cf);
+for (let i = 0; i < 20 && x._historico.itens[0]?.tipo !== 'arquivo'; i++) await esperar(100);
+x.abrirHistorico();
+await esperar(200);
+const arq = x._balao._itens.find(i => i.entrada.tipo === 'arquivo');
+ok(arq && x._balao._o.aoTecla(arq, Clutter.KEY_e, Clutter.ModifierType.CONTROL_MASK), 'Ctrl+E arquivo');
+x._balao.fechar();
+for (let i = 0; i < 20; i++) { r = await x._nexus.comando({cmd: 'ultimo'}); if (r.cmd === 'send.file') break; await esperar(100); }
+ok(r.cmd === 'send.file' && r.path === '/tmp/a b.txt', json(r));
+return 'ok';
+JS
+kill $FALSO; wait $FALSO 2>/dev/null
+caso "daemon some: Balão segue normal" <<'JS'
+for (let i = 0; i < 30 && x._nexus.disponivel; i++) await esperar(100);
+ok(!x._nexus.disponivel && !x._nexus.dispositivos.length, 'ainda disponível');
+const r = await x._nexus.comando({cmd: 'devices.list'});
+ok(r.ok === false, 'comando sem daemon deveria falhar com ok=false');
+x._settings.set_boolean('nexus-ativo', false);
+await esperar(200);
+const dono = Gio.DBus.session.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+    'NameHasOwner', new GLib.Variant('(s)', ['dev.nexus.Shell']), null, Gio.DBusCallFlags.NONE, 1000, null).deepUnpack()[0];
+ok(!dono, 'não liberou dev.nexus.Shell');
+return 'ok';
+JS
+
 echo
 echo "Passou: $PASSOU  Falhou: $FALHOU   (fotos em $TMP/fotos)"
 [ "$FALHOU" -eq 0 ]

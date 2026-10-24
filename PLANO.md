@@ -75,7 +75,7 @@ global do mouse nem o cursor de texto de outros apps. Dentro do Shell tudo isso 
 - [x] Balão do histórico: filtro sem acento, ícone genérico para não-texto, Del remove, Ctrl+P fixa
 - [x] Ao escolher: vira o conteúdo atual (Ctrl+V continua funcionando)
 - [~] Colar automático no campo em foco (Shift+Insert virtual) — **validar no uso real**
-- [ ] Desativar a Clipboard Indicator no uso real (conflito no Super+X)
+- [x] Desativar a Clipboard Indicator no uso real (conflito no Super+X)
 
 ### Fase 4 — Pesquisa
 - [x] Balão principal com campo preenchido pela palavra/seleção (ou seleção PRIMARY no modo mouse)
@@ -91,8 +91,22 @@ global do mouse nem o cursor de texto de outros apps. Dentro do Shell tudo isso 
 - [x] Atalhos, idioma, URL de pesquisa, tamanho do histórico, limite por item, colar automático
 
 ### Fase 7 — Instalação e uso real
-- [ ] Instalar (symlink), desativar Clipboard Indicator, sair e entrar na sessão
+- [~] Instalar (symlink + habilitada em `enabled-extensions`), desativar Clipboard Indicator — falta sair e entrar na sessão
 - [ ] Rodar o roteiro de validação abaixo e anotar o que falhar
+
+### Fase 9 — Integração com o Nexus (opcional, `nexus.js`)
+Nexus = projeto separado (`~/Documentos/projetos/Nexus: integracao-pc-mobile`, ADR-0003): o `nexusd` cuida da rede, do
+TLS e do pareamento; o Balão é só o frontend no Shell, falando pelo D-Bus da sessão (`dev.nexus.Daemon1`: `Command`/`Event`).
+- [x] Preferência "Usar o Nexus" (`nexus-ativo`, desligada por padrão); sem nexusd, nada aparece
+- [x] Ocupa `dev.nexus.Shell` só quando ligado (o nexusd sabe que o Balão cuida da área de transferência)
+- [x] Texto recebido do dispositivo → área de transferência (`St.Clipboard`) → entra no histórico pelo `owner-changed`
+- [x] Pedido de pareamento → notificação "Conferir código" → balão com o código ("Recusar" primeiro; não abre sozinho para não pegar o teclado)
+- [x] nexusd some ou volta: o Balão segue normal — 5 testes com `tests/nexus_falso.py` no barramento privado
+- [x] Balão principal: "Enviar para <dispositivo>" e "Pesquisar no <dispositivo>" para cada dispositivo conectado
+- [x] "Espelhar tela do <dispositivo>" (scrcpy via nexusd), também com o campo vazio; atalho Super+Shift+M (`atalho-espelhar`)
+- [x] "Áudio do PC no <dispositivo>" / "Parar áudio" (som do PC sai no celular, Nexus A04)
+- [x] Histórico: Ctrl+E envia o item ao primeiro dispositivo conectado: texto completo ou arquivos copiados (Nexus A06)
+- [x] Uso real com o nexusd e o POCO (2026-10-24): pareamento pela notificação, Enviar/Pesquisar no dispositivo, Ctrl+E, texto recebido no histórico
 
 ### Fase 8 — Opcional
 - [ ] Miniatura das imagens na lista
