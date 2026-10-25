@@ -316,25 +316,55 @@ for (let i = 0; i < 20 && x._historico.itens[0]?.previa !== t; i++) await espera
 ok(x._historico.itens[0].previa === t, 'histórico: ' + x._historico.itens[0]?.previa);
 return 'ok';
 JS
-caso "pedido de pareamento: notificação e balão com Recusar primeiro" <<'JS'
-const antes = Main.messageTray.getSources().length;
+caso "pedido de pareamento: notch abre sem pegar o teclado, Recusar primeiro" <<'JS'
 const p = {event: 'pair.pending', pid: 'abc12345', name: 'POCO', kind: 'phone', fingerprint: '7b'.repeat(32), code: '169469', expires_in: 50};
 Gio.DBus.session.call_sync('dev.nexus.Daemon', '/dev/nexus/Daemon', 'dev.nexus.Daemon1', 'Emitir',
     new GLib.Variant('(s)', [JSON.stringify(p)]), null, Gio.DBusCallFlags.NONE, 1000, null);
-for (let i = 0; i < 30 && Main.messageTray.getSources().length === antes; i++) await esperar(100);
-ok(Main.messageTray.getSources().length > antes, 'sem notificação');
-ok(!x._balao, 'balão abriu sozinho (pegaria o teclado)');
-x.abrirPareamento(p);
+for (let i = 0; i < 30 && x._notch._modo !== 'pareamento'; i++) await esperar(100);
+ok(x._notch._modo === 'pareamento', 'notch não abriu: ' + x._notch._modo);
+ok(!x._notch._grab, 'pareamento não pode pegar o teclado');
+ok(x._nexus.expressao === 'atento', 'expressão ' + x._nexus.expressao);
+const botoes = x._notch._recusar.get_parent().get_children();
+ok(botoes[0] === x._notch._recusar && x._notch._recusar.label === 'Recusar', 'Recusar não é o primeiro');
+await esperar(400); // fim da animação de entrada
+await foto('nexus-notch-pareamento.png');
+x._notch._confirmar.emit('clicked', 1);
 await esperar(300);
-ok(x._balao?.aberto, 'balão não abriu');
-const itens = x._balao._itens;
-ok(itens[0].acao === 'recusar' && itens[1].acao === 'aceitar', json(itens.map(i => i.acao)));
-ok(itens[1].rotulo.includes('169 469'), itens[1].rotulo);
-await foto('nexus-pareamento.png');
-await x._balao._o.aoEscolher(itens[1]);
-x._balao.fechar();
 const r = await x._nexus.comando({cmd: 'ultimo'});
 ok(r.cmd === 'pair.confirm' && r.pid === 'abc12345' && r.accept === true, json(r));
+Gio.DBus.session.call_sync('dev.nexus.Daemon', '/dev/nexus/Daemon', 'dev.nexus.Daemon1', 'Emitir',
+    new GLib.Variant('(s)', [JSON.stringify({event: 'pair.result', ok: true, name: 'POCO'})]), null, 0, 1000, null);
+for (let i = 0; i < 30 && x._notch._modo; i++) await esperar(100);
+ok(!x._notch._modo, 'notch não fechou após o resultado');
+return 'ok';
+JS
+caso "notch normal: abre, controles, copiar no celular, Esc fecha" <<'JS'
+ok(!x._notch._pilula.visible, 'pílula deveria começar escondida');
+x._notch.mostrarPilula();
+await esperar(400);
+ok(x._notch._pilula.visible && x._notch._pilula.opacity === 255, 'pílula não apareceu');
+const {topoLivre} = await import('file://' + RAIZ + '/notch.js');
+const mon = {x: 0, y: 0, width: 1280};
+ok(topoLivre(mon, {visivel: true, y: 0, altura: 32, largura: 1280}) === 32, 'barra no topo');
+ok(topoLivre(mon, {visivel: true, y: 768, altura: 32, largura: 1280}) === 0, 'barra embaixo: encosta na borda');
+ok(topoLivre(mon, {visivel: true, y: 0, altura: 800, largura: 48}) === 0, 'barra lateral');
+ok(topoLivre(mon, {visivel: false, y: 0, altura: 32, largura: 1280}) === 0, 'barra escondida');
+x._notch.abrir('normal');
+await esperar(300);
+ok(x._notch._grab, 'normal deveria ser modal');
+await foto('nexus-notch.png');
+const controles = [];
+const visitar = a => { if (a.style_class?.split(' ').includes('nx-controle')) controles.push(a); a.get_children().forEach(visitar); };
+visitar(x._notch._painel);
+ok(controles.length === 6, 'controles: ' + controles.length);
+St.Clipboard.get_default().set_text(CB, 'do notch para o celular');
+await esperar(200);
+controles.find(c => c.accessible_name === 'Copiar no celular').emit('clicked', 1);
+let r;
+for (let i = 0; i < 20; i++) { await esperar(100); r = await x._nexus.comando({cmd: 'ultimo'}); if (r.cmd === 'send.text') break; }
+ok(r.cmd === 'send.text' && r.text === 'do notch para o celular', json(r));
+x._notch.fechar();
+ok(!x._notch.aberto, 'não fechou');
 return 'ok';
 JS
 caso "enviar e pesquisar no dispositivo (balão principal e Ctrl+E no histórico)" <<'JS'
@@ -383,6 +413,24 @@ ok(arq && x._balao._o.aoTecla(arq, Clutter.KEY_e, Clutter.ModifierType.CONTROL_M
 x._balao.fechar();
 for (let i = 0; i < 20; i++) { r = await x._nexus.comando({cmd: 'ultimo'}); if (r.cmd === 'send.file') break; await esperar(100); }
 ok(r.cmd === 'send.file' && r.path === '/tmp/a b.txt', json(r));
+return 'ok';
+JS
+caso "arquivo chegando: notch mostra progresso e cancela" <<'JS'
+const emitir = ev => Gio.DBus.session.call_sync('dev.nexus.Daemon', '/dev/nexus/Daemon', 'dev.nexus.Daemon1', 'Emitir',
+    new GLib.Variant('(s)', [JSON.stringify(ev)]), null, Gio.DBusCallFlags.NONE, 1000, null);
+const base = {id: 't1', direction: 'in', device_id: 'x', device_name: 'POCO', name: 'foto-praia.jpg', total: 5347737};
+emitir({event: 'file.progress', ...base, done: 3315597});
+for (let i = 0; i < 30 && x._notch._modo !== 'arquivo'; i++) await esperar(100);
+ok(x._notch._modo === 'arquivo' && !x._notch._grab, 'modo ' + x._notch._modo);
+await esperar(300);
+await foto('nexus-notch-arquivo.png');
+x._notch._cancelar.emit('clicked', 1);
+await esperar(300);
+const r = await x._nexus.comando({cmd: 'ultimo'});
+ok(r.cmd === 'file.cancel' && r.id === 't1', json(r));
+emitir({event: 'file.done', id: 't1', ok: false, name: 'foto-praia.jpg', direction: 'in', device_id: 'x'});
+for (let i = 0; i < 40 && x._notch._modo; i++) await esperar(100);
+ok(!x._notch._modo, 'notch não fechou após o fim');
 return 'ok';
 JS
 kill $FALSO; wait $FALSO 2>/dev/null

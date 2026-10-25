@@ -21,6 +21,7 @@ export default class Preferencias extends ExtensionPreferences {
         atalhos.add(linhaTexto(s, 'atalho-balao', 'Correção e pesquisa', t => Gtk.accelerator_parse(t)[0], true));
         atalhos.add(linhaTexto(s, 'atalho-historico', 'Área de transferência', t => Gtk.accelerator_parse(t)[0], true));
         atalhos.add(linhaTexto(s, 'atalho-espelhar', 'Espelhar dispositivo (Nexus)', t => Gtk.accelerator_parse(t)[0], true));
+        atalhos.add(linhaTexto(s, 'atalho-notch', 'Notch do Nexus', t => Gtk.accelerator_parse(t)[0], true));
 
         const texto = new Adw.PreferencesGroup({title: 'Correção e pesquisa'});
         pagina.add(texto);

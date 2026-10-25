@@ -40,6 +40,20 @@ O balão não fica preso num canto da tela: ele aparece junto do cursor de texto
 | `Ctrl+P` | Fixar ou desafixar o item do histórico |
 | Arrastar o título | Mover o balão |
 
+## Integração com o Nexus (opcional)
+
+Com o [Nexus](https://github.com/JvFontenele/nexus) instalado, ligue **Preferências → Usar o Nexus**. O Balão passa a ser o rosto do Nexus no GNOME:
+
+- **Notch no topo da tela** com o mascote Nexo.
+  - Fica escondido e desce quando você empurra o mouse contra o topo, ou com `Super+Shift+N`.
+  - Mostra o dispositivo e seis controles: espelhar a tela, áudio do PC no celular, enviar arquivo, copiar no celular, pesquisar no celular e permissões.
+  - Pedidos de pareamento e o progresso de arquivos aparecem nele sem pegar o teclado.
+- **Balão principal:** ganha "Enviar para…", "Pesquisar no…", "Espelhar tela do…" e "Áudio do PC no…".
+- **Histórico (`Super+X`):** o texto que chega do celular entra no histórico, e `Ctrl+E` envia ao celular o texto ou os arquivos copiados.
+- **Atalho `Super+Shift+M`:** espelha a tela do celular (scrcpy).
+
+Sem o Nexus, nada disso aparece e o Balão funciona como antes.
+
 ## Requisitos
 
 - **GNOME Shell 46** em sessão **Wayland**. Desenvolvido no Zorin OS 18 (base Ubuntu 24.04).

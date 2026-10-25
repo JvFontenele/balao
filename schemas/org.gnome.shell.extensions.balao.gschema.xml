@@ -35,6 +35,10 @@
       <default><![CDATA[['<Super><Shift>m']]]></default>
       <summary>Atalho para espelhar a tela do dispositivo (Nexus + scrcpy)</summary>
     </key>
+    <key name="atalho-notch" type="as">
+      <default><![CDATA[['<Super><Shift>n']]]></default>
+      <summary>Atalho para abrir o notch do Nexus</summary>
+    </key>
     <key name="nexus-ativo" type="b">
       <default>false</default>
       <summary>Integração com o Nexus (dispositivos pareados pelo nexusd)</summary>

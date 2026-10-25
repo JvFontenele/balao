@@ -27,7 +27,7 @@ def responder(req):
         return {"ok": True, "devices": [POCO], "connected": [POCO["device_id"]], "audio": None}
     if cmd == "pair.pending":
         return {"ok": True, "pending": []}
-    if cmd in ("send.text", "open.url", "mirror", "audio.start", "audio.stop", "send.file"):
+    if cmd in ("send.text", "open.url", "mirror", "audio.start", "audio.stop", "send.file", "file.cancel"):
         return {"ok": True}
     if cmd == "pair.confirm":
         return {"ok": True, "paired": bool(req.get("accept"))}

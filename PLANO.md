@@ -105,6 +105,10 @@ TLS e do pareamento; o Balão é só o frontend no Shell, falando pelo D-Bus da 
 - [x] Balão principal: "Enviar para <dispositivo>" e "Pesquisar no <dispositivo>" para cada dispositivo conectado
 - [x] "Espelhar tela do <dispositivo>" (scrcpy via nexusd), também com o campo vazio; atalho Super+Shift+M (`atalho-espelhar`)
 - [x] "Áudio do PC no <dispositivo>" / "Parar áudio" (som do PC sai no celular, Nexus A04)
+- [x] Notch do Nexus (`notch.js`): pílula sob o relógio (rosto do Nexo, conexão, áudio) que abre painel com o dispositivo e 6 controles; Super+Shift+N; pedido de pareamento abre o notch sem pegar o teclado (Recusar primeiro), substituindo a notificação
+- [x] (validado no uso real 2026-10-24) Notch escondido por padrão: desce com animação ao empurrar o mouse no topo (barreira de pressão, sem roubar cliques) ou pelo atalho; encosta na borda quando a barra do Zorin está embaixo (`topoLivre`)
+- [x] Notch: transferência de arquivo com barra, velocidade e cancelar (eventos `file.progress`/`file.done` do Nexus)
+- [ ] Arrastar arquivos até o notch (precisa de prova de conceito no Wayland)
 - [x] Histórico: Ctrl+E envia o item ao primeiro dispositivo conectado: texto completo ou arquivos copiados (Nexus A06)
 - [x] Uso real com o nexusd e o POCO (2026-10-24): pareamento pela notificação, Enviar/Pesquisar no dispositivo, Ctrl+E, texto recebido no histórico
 

@@ -6,7 +6,6 @@ import GLib from 'gi://GLib';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
 const DAEMON = 'dev.nexus.Daemon';
 const CAMINHO = '/dev/nexus/Daemon';
@@ -14,12 +13,15 @@ const INTERFACE = 'dev.nexus.Daemon1';
 const SHELL = 'dev.nexus.Shell'; // avisa o nexusd que o Balão cuida da área de transferência e dos pedidos
 
 export class Nexus {
-    // aoParear(pedido): abre o balão de conferência do código.
-    constructor(settings, {aoParear}) {
+    constructor(settings) {
         this._settings = settings;
-        this._aoParear = aoParear;
         this.disponivel = false;
         this.dispositivos = [];
+        this.ultimo = {arquivo: null, texto: null};
+        this.pareamento = null;     // pedido pendente mostrado no notch
+        this.transferencia = null;  // arquivo indo/vindo: {id, direction, name, device_name, done, total, inicio}
+        this._reacao = null;        // expressão passageira do Nexo: {expr, ate}
+        this._ouvintes = new Set();
         this._idAtivo = settings.connect('changed::nexus-ativo', () => this._aplicar());
         this._aplicar();
     }
@@ -58,6 +60,8 @@ export class Nexus {
             () => {
                 this.disponivel = false;
                 this.dispositivos = [];
+                this.pareamento = null;
+                this._avisar();
             });
     }
 
@@ -70,6 +74,8 @@ export class Nexus {
         this._idNome = this._idSinal = this._idVigia = 0;
         this.disponivel = false;
         this.dispositivos = [];
+        this.pareamento = null;
+        this._avisar();
     }
 
     // Chama dev.nexus.Daemon1.Command; nunca rejeita: erro vira {ok: false, error}.
@@ -90,6 +96,40 @@ export class Nexus {
         const r = await this.comando({cmd: 'devices.list'});
         this.dispositivos = r.ok ? r.devices.map(d => ({...d, conectado: r.connected.includes(d.device_id),
             audio: r.audio === d.device_id})) : [];
+        this._avisar();
+    }
+
+    // O notch se redesenha quando algo muda.
+    conectar(fn) {
+        this._ouvintes.add(fn);
+        return () => this._ouvintes.delete(fn);
+    }
+
+    _avisar() {
+        for (const fn of this._ouvintes) {
+            try {
+                fn();
+            } catch (e) {
+                logError(e, 'balao: ouvinte do nexus');
+            }
+        }
+    }
+
+    // Expressão do Nexo agora: pareando > reação recente > áudio > conectado > dormindo.
+    get expressao() {
+        if (this.pareamento)
+            return 'atento';
+        if (this._reacao && this._reacao.ate > Date.now())
+            return this._reacao.expr;
+        if (this.dispositivos.some(d => d.audio))
+            return 'curtindo';
+        return this.dispositivos.some(d => d.conectado) ? 'conectado' : 'dormindo';
+    }
+
+    reagir(expr, ms = 3000) {
+        this._reacao = {expr, ate: Date.now() + ms};
+        this._avisar();
+        setTimeout(() => this._avisar(), ms + 50);
     }
 
     confirmar(pid, aceitar) {
@@ -102,12 +142,39 @@ export class Nexus {
             // vira a área de transferência atual; o Histórico captura pelo owner-changed como qualquer cópia
             St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, String(ev.text ?? ''));
             Main.notify('Nexus', `Texto de ${ev.name ?? 'dispositivo'} copiado`);
+            this.ultimo.texto = String(ev.text ?? '');
+            this.reagir('surpreso');
+            break;
+        case 'file.received':
+            this.ultimo.arquivo = String(ev.path ?? '').split('/').pop();
+            this.reagir('surpreso', 4000);
             break;
         case 'pair.pending':
-            this._avisarPareamento(ev);
+            this._mostrarPareamento(ev);
+            break;
+        case 'file.progress':
+            this.transferencia = {...ev, inicio: this.transferencia?.id === ev.id ? this.transferencia.inicio : Date.now()};
+            this._avisar();
+            break;
+        case 'file.done':
+            if (this.transferencia?.id !== ev.id)
+                break;
+            this.transferencia = {...this.transferencia, fim: ev.ok ? 'ok' : 'cancelado'};
+            if (ev.ok)
+                this.reagir('feito', 2000);
+            this._avisar();
+            setTimeout(() => {
+                if (this.transferencia?.id === ev.id) {
+                    this.transferencia = null;
+                    this._avisar();
+                }
+            }, 2000);
             break;
         case 'pair.result':
             Main.notify('Nexus', ev.ok ? `Pareado com ${ev.name ?? 'dispositivo'}` : `Pareamento recusado (${ev.reason ?? ''})`);
+            this.pareamento = null;
+            if (ev.ok)
+                this.reagir('feito');
             this.atualizar();
             break;
         case 'device.connected':
@@ -118,18 +185,17 @@ export class Nexus {
         }
     }
 
-    // Pedido chega pela rede: só uma notificação. O balão (que pega o teclado) abre quando o usuário pede.
-    _avisarPareamento(p) {
-        const fonte = new MessageTray.Source({title: 'Nexus', iconName: 'phone-symbolic'});
-        Main.messageTray.add(fonte);
-        const n = new MessageTray.Notification({
-            source: fonte,
-            title: 'Pedido de pareamento',
-            body: `${p.name} quer parear com este PC.`,
-            urgency: MessageTray.Urgency.CRITICAL,
-        });
-        n.addAction('Conferir código', () => this._aoParear(p));
-        fonte.addNotification(n);
+    // Pedido chega pela rede: o notch mostra o código sem pegar o teclado; some ao expirar ou ao responder.
+    _mostrarPareamento(p) {
+        this.pareamento = p;
+        this._avisar();
+        const pid = p.pid;
+        setTimeout(() => {
+            if (this.pareamento?.pid === pid) {
+                this.pareamento = null;
+                this._avisar();
+            }
+        }, Math.max(1, p.expires_in ?? 60) * 1000);
     }
 }
 

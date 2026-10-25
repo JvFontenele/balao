@@ -16,6 +16,7 @@ Plano e progresso: [PLANO.md](PLANO.md) — atualize os checkboxes ao concluir e
 - `entrada.js` — `Foco`: posição do cursor de texto, palavra sob o cursor, troca de texto, Ctrl+V virtual
 - `historico.js` — captura/armazenamento/restauração da área de transferência
 - `ortografia.js` — processo `enchant-2 -a` persistente
+- `notch.js` — notch do Nexus no topo da tela (pílula + painel; o Nexo desenhado em Cairo)
 - `nexus.js` — integração opcional com o Nexus (D-Bus `dev.nexus.Daemon1`); sem nexusd não faz nada
 - `prefs.js` — preferências (libadwaita)
 - `schemas/` — GSettings (`org.gnome.shell.extensions.balao`)

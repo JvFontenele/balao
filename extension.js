@@ -13,7 +13,8 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {Balao} from './balao.js';
 import {Foco} from './entrada.js';
 import {Historico, ICONES} from './historico.js';
-import {formatarCodigo, Nexus} from './nexus.js';
+import {Nexus} from './nexus.js';
+import {Notch} from './notch.js';
 import {Ortografia} from './ortografia.js';
 
 const MODOS = Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW | Shell.ActionMode.POPUP;
@@ -28,26 +29,31 @@ export default class PesquisaLinux extends Extension {
             this._ortografia.destroy();
             this._ortografia = new Ortografia(this._settings.get_string('idioma'));
         });
-        this._nexus = new Nexus(this._settings, {aoParear: p => this.abrirPareamento(p)});
+        this._nexus = new Nexus(this._settings);
+        this._notch = new Notch(this._nexus, {abrirPrincipal: () => this.abrirPrincipal()});
         Main.wm.addKeybinding('atalho-balao', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, MODOS,
             () => this._alternar(() => this.abrirPrincipal()));
         Main.wm.addKeybinding('atalho-historico', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, MODOS,
             () => this._alternar(() => this.abrirHistorico()));
         Main.wm.addKeybinding('atalho-espelhar', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, MODOS,
             () => this.espelhar());
+        Main.wm.addKeybinding('atalho-notch', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, MODOS,
+            () => this._nexus.disponivel ? this._notch.alternar() : Main.notify('Nexus', 'Ative "Usar o Nexus" nas preferências do Balão'));
     }
 
     disable() {
         Main.wm.removeKeybinding('atalho-balao');
         Main.wm.removeKeybinding('atalho-historico');
         Main.wm.removeKeybinding('atalho-espelhar');
+        Main.wm.removeKeybinding('atalho-notch');
         this._balao?.fechar();
         this._settings.disconnect(this._idIdioma);
         this._ortografia.destroy();
+        this._notch.destroy();
         this._nexus.destroy();
         this._historico.destroy();
         this._foco.destroy();
-        this._balao = this._settings = this._foco = this._historico = this._ortografia = this._nexus = null;
+        this._balao = this._settings = this._foco = this._historico = this._ortografia = this._nexus = this._notch = null;
     }
 
     // Atalho com o balão aberto fecha o balão.
@@ -168,26 +174,6 @@ export default class PesquisaLinux extends Extension {
         } catch (e) {
             Main.notifyError('Balão', `Não abriu o navegador: ${e.message}`);
         }
-    }
-
-    // Conferência do código de pareamento do Nexus. "Recusar" vem primeiro: Enter por engano não pareia.
-    abrirPareamento(p) {
-        this._abrir(this._foco.capturar(), {
-            titulo: `Parear com ${p.name} · código ${formatarCodigo(p.code)}`,
-            dica: 'Confira o código no outro dispositivo',
-            vazio: '',
-            rodape: 'Confirme só se o dispositivo mostrar o mesmo código',
-            itens: () => [
-                {icone: 'window-close-symbolic', rotulo: 'Recusar', acao: 'recusar'},
-                {icone: 'emblem-ok-symbolic', rotulo: `Confirmar ${formatarCodigo(p.code)}`,
-                    legenda: `${p.fingerprint.slice(0, 16)}…`, acao: 'aceitar'},
-            ],
-            aoEscolher: async item => {
-                const r = await this._nexus.confirmar(p.pid, item.acao === 'aceitar');
-                if (!r.ok)
-                    Main.notifyError('Nexus', r.error ?? 'falhou');
-            },
-        });
     }
 
     abrirHistorico() {
