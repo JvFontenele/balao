@@ -50,6 +50,10 @@ export default class Preferencias extends ExtensionPreferences {
         const ativo = new Adw.SwitchRow({title: 'Usar o Nexus', subtitle: nexusRodando() ? 'nexusd encontrado' : 'nexusd não está rodando'});
         s.bind('nexus-ativo', ativo, 'active', Gio.SettingsBindFlags.DEFAULT);
         nexus.add(ativo);
+        const passando = new Adw.SwitchRow({title: 'Abrir o notch ao passar o mouse',
+            subtitle: 'Sem clicar; fecha quando o mouse sai e não pega o teclado'});
+        s.bind('notch-abrir-passando', passando, 'active', Gio.SettingsBindFlags.DEFAULT);
+        nexus.add(passando);
     }
 }
 

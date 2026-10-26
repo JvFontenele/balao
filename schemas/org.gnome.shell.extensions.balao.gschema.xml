@@ -43,5 +43,9 @@
       <default>false</default>
       <summary>Integração com o Nexus (dispositivos pareados pelo nexusd)</summary>
     </key>
+    <key name="notch-abrir-passando" type="b">
+      <default>false</default>
+      <summary>Abrir o notch do Nexus só de passar o mouse (sem clicar)</summary>
+    </key>
   </schema>
 </schemalist>

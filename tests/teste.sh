@@ -49,6 +49,25 @@ ok(d('text/plain;charset=utf-8', enc(`  oi
 return 'ok';
 JS
 
+caso "forma da ilha: mola, curva de fechar e orelhas" <<'JS'
+const {mola, fechar, caminhoIlha} = await import('file://' + RAIZ + '/forma.js');
+const {default: Cairo} = await import('cairo');
+let pico = 0;
+for (let t = 0; t < 1; t += 0.005) pico = Math.max(pico, mola(t));
+ok(mola(0) === 0 && pico > 1.02 && pico < 1.06 && Math.abs(mola(0.8) - 1) < 0.002, 'mola ' + pico);
+ok(Math.abs(fechar(0)) < 1e-3 && Math.abs(fechar(1) - 1) < 1e-3 && fechar(0.5) > 0.5, 'curva de fechar');
+const sup = new Cairo.ImageSurface(Cairo.Format.ARGB32, 100, 40), cr = new Cairo.Context(sup);
+caminhoIlha(cr, 72, 40, 14, 19);
+ok(cr.inFill(12, 1) && !cr.inFill(1, 10) && cr.inFill(50, 39) && !cr.inFill(15, 39.5), 'orelha/canto');
+caminhoIlha(cr, 100, 40, 0, 19);
+ok(cr.inFill(0.5, 0.5) && !cr.inFill(1, 39.5), 'topo reto');
+const {desenharNexo, EXPRESSOES} = await import('file://' + RAIZ + '/mascote.js');
+for (const expr of EXPRESSOES)
+    desenharNexo(cr, 34, 31, {expr, dx: 1, dy: -1, abertura: 0.5, pulo: 4, giro: 1, coracoes: [{x: 30, y: 10, s: 7, a: 0.5}]});
+cr.$dispose();
+return 'ok';
+JS
+
 echo "== Fase 3: histórico"
 caso "importou Clipboard Indicator" <<'JS'
 const h = x._historico.itens;
@@ -326,7 +345,7 @@ ok(!x._notch._grab, 'pareamento não pode pegar o teclado');
 ok(x._nexus.expressao === 'atento', 'expressão ' + x._nexus.expressao);
 const botoes = x._notch._recusar.get_parent().get_children();
 ok(botoes[0] === x._notch._recusar && x._notch._recusar.label === 'Recusar', 'Recusar não é o primeiro');
-await esperar(400); // fim da animação de entrada
+await esperar(900); // fim da mola e da entrada do conteúdo
 await foto('nexus-notch-pareamento.png');
 x._notch._confirmar.emit('clicked', 1);
 await esperar(300);
@@ -341,8 +360,9 @@ JS
 caso "notch normal: abre, controles, copiar no celular, Esc fecha" <<'JS'
 ok(!x._notch._pilula.visible, 'pílula deveria começar escondida');
 x._notch.mostrarPilula();
-await esperar(400);
+await esperar(900);
 ok(x._notch._pilula.visible && x._notch._pilula.opacity === 255, 'pílula não apareceu');
+await foto('nexus-notch-pilula.png');
 const {topoLivre} = await import('file://' + RAIZ + '/notch.js');
 const mon = {x: 0, y: 0, width: 1280};
 ok(topoLivre(mon, {visivel: true, y: 0, altura: 32, largura: 1280}) === 32, 'barra no topo');
@@ -350,7 +370,7 @@ ok(topoLivre(mon, {visivel: true, y: 768, altura: 32, largura: 1280}) === 0, 'ba
 ok(topoLivre(mon, {visivel: true, y: 0, altura: 800, largura: 48}) === 0, 'barra lateral');
 ok(topoLivre(mon, {visivel: false, y: 0, altura: 32, largura: 1280}) === 0, 'barra escondida');
 x._notch.abrir('normal');
-await esperar(300);
+await esperar(900);
 ok(x._notch._grab, 'normal deveria ser modal');
 await foto('nexus-notch.png');
 const controles = [];
@@ -422,7 +442,7 @@ const base = {id: 't1', direction: 'in', device_id: 'x', device_name: 'POCO', na
 emitir({event: 'file.progress', ...base, done: 3315597});
 for (let i = 0; i < 30 && x._notch._modo !== 'arquivo'; i++) await esperar(100);
 ok(x._notch._modo === 'arquivo' && !x._notch._grab, 'modo ' + x._notch._modo);
-await esperar(300);
+await esperar(900);
 await foto('nexus-notch-arquivo.png');
 x._notch._cancelar.emit('clicked', 1);
 await esperar(300);
@@ -432,6 +452,56 @@ emitir({event: 'file.done', id: 't1', ok: false, name: 'foto-praia.jpg', directi
 for (let i = 0; i < 40 && x._notch._modo; i++) await esperar(100);
 ok(!x._notch._modo, 'notch não fechou após o fim');
 return 'ok';
+JS
+caso "ilha: orelhas na borda, abrir passando o mouse, repouso sem timers" <<'JS'
+const n = x._notch;
+for (let i = 0; i < 20 && n._ilha.visible; i++) await esperar(100);
+ok(n._topo.margem === 0, 'abaixo da barra do topo não deveria ter orelhas');
+Main.layoutManager.panelBox.hide();
+try {
+    n.mostrarPilula();
+    await esperar(900);
+    ok(n._topo.margem === 14 && n._ilha.y === 0, 'orelhas: ' + json(n._topo));
+    ok(n._mascote.animando, 'o Nexo deveria animar com a ilha à mostra');
+    await foto('nexus-notch-orelhas-pilula.png');
+    n.abrir('normal');
+    await esperar(900);
+    const grande = n._mascoteCartao;
+    ok(grande?.animando, 'Nexo do cartão parado');
+    grande.carinho();
+    await esperar(500);
+    ok(grande.estado().coracoes.length > 0 && grande.estado().expr === 'feito', 'carinho sem corações');
+    await foto('nexus-notch-orelhas-painel.png');
+    for (let i = 0; i < 3; i++)
+        grande.cutucar();
+    ok(grande.estado().expr === 'tonto', 'três cutucadas: ' + grande.estado().expr);
+    await esperar(300);
+    await foto('nexus-notch-tonto.png');
+    grande.pular();
+    await esperar(200);
+    ok(grande.estado().pulo > 0, 'pulinho');
+    n.fechar();
+    await esperar(600);
+} finally {
+    Main.layoutManager.panelBox.show();
+}
+x._settings.set_boolean('notch-abrir-passando', true);
+n.mostrarPilula();
+await esperar(300);
+n._ilha.track_hover = false; // o mouse de verdade (do host) não interfere no hover simulado
+n._ilha.hover = true;
+ok(n._modo === 'normal' && n._porHover && !n._grab, 'hover: ' + n._modo + ' grab ' + !!n._grab);
+n._ilha.hover = false;
+await esperar(900);
+ok(!n._modo, 'não fechou quando o mouse saiu');
+n._ilha.track_hover = true;
+x._settings.set_boolean('notch-abrir-passando', false);
+for (let i = 0; i < 20 && n._ilha.visible; i++) await esperar(100);
+ok(!n._ilha.visible && !n._tl && !n._mascote.animando && !n._idEsconder && !n._mascote._idCarinho,
+    'algo segue rodando escondido');
+const cpu = () => new TextDecoder().decode(GLib.file_get_contents('/proc/self/stat')[1]).split(') ')[1].split(' ').slice(11, 13).reduce((a, b) => a + +b, 0);
+const c0 = cpu(); await esperar(3000);
+return `repouso: ${((cpu() - c0) / 3).toFixed(1)} ticks/s do Shell aninhado`;
 JS
 kill $FALSO; wait $FALSO 2>/dev/null
 caso "daemon some: Balão segue normal" <<'JS'

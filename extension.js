@@ -30,7 +30,7 @@ export default class PesquisaLinux extends Extension {
             this._ortografia = new Ortografia(this._settings.get_string('idioma'));
         });
         this._nexus = new Nexus(this._settings);
-        this._notch = new Notch(this._nexus, {abrirPrincipal: () => this.abrirPrincipal()});
+        this._notch = new Notch(this._nexus, {abrirPrincipal: () => this.abrirPrincipal()}, this._settings);
         Main.wm.addKeybinding('atalho-balao', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, MODOS,
             () => this._alternar(() => this.abrirPrincipal()));
         Main.wm.addKeybinding('atalho-historico', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, MODOS,

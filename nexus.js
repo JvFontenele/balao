@@ -177,8 +177,11 @@ export class Nexus {
                 this.reagir('feito');
             this.atualizar();
             break;
-        case 'device.connected':
         case 'device.disconnected':
+            this.reagir('preocupado');
+            this.atualizar();
+            break;
+        case 'device.connected':
         case 'audio.changed':
             this.atualizar();
             break;

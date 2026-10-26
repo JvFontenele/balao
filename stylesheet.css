@@ -51,12 +51,12 @@
 }
 
 /* Notch do Nexus (notch.js) */
-.nx-pilula { background-color: #101116; border-radius: 0 0 19px 19px; padding: 5px 14px 5px 8px; }
-.nx-pilula:hover, .nx-pilula:focus { background-color: #1D2027; }
+/* O fundo e os cantos da ilha (pílula e painel) são pintados em Cairo por forma.js, com as orelhas no topo. */
+.nx-pilula { padding: 5px 14px 5px 8px; }
 .nx-pilula-caixa { spacing: 10px; }
 .nx-ponto { width: 7px; height: 7px; border-radius: 4px; background-color: #5bd39a; }
 .nx-onda { icon-size: 16px; color: #8ea8ff; }
-.nx-painel { width: 860px; padding: 14px 18px 18px; spacing: 14px; border-radius: 0 0 28px 28px; background-color: #101116; color: #edeef2; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45); }
+.nx-painel { width: 860px; padding: 14px 18px 18px; spacing: 14px; color: #edeef2; }
 .nx-painel-pareamento { width: 540px; }
 .nx-topo { spacing: 6px; }
 .nx-marca { font-weight: bold; font-size: 11pt; padding-left: 4px; }
